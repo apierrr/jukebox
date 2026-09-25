@@ -1,5 +1,5 @@
 // Service worker : coquille de l'app en cache (réseau d'abord), API jamais mise en cache.
-const V = 'jukebox-v15';
+const V = 'jukebox-v16';
 const SHELL = ['/', '/static/style.css', '/static/app.js', '/static/manifest.webmanifest',
   '/static/icons/icon-192.png', '/static/icons/icon-512.png'];
 

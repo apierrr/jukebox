@@ -68,17 +68,19 @@ function browseHref(it) {
   if (it.title) p.set('t', it.title);
   if (it.subtitle) p.set('s', it.subtitle);
   if (it.hires) p.set('h', '1');
+  if (it.quality) p.set('q', it.quality);
   if (it.image_large || it.image) p.set('i', it.image_large || it.image);
   return `#/browse/${encodeURIComponent(it.id)}?${p}`;
 }
 const coverHTML = it => it.image ? `<img loading="lazy" src="${esc(it.image)}" alt="">` : `<div class="ph">${I.note}</div>`;
-const hrHTML = it => it.hires ? '<span class="hr">Hi-Res</span>' : '';
-const cardHTML = it => `<a class="card" href="${browseHref(it)}"><div class="cover">${coverHTML(it)}</div><div class="c-title one">${esc(it.title)}</div><div class="c-sub one muted">${hrHTML(it)}${esc(it.subtitle)}</div></a>`;
+// Hi-Res : étiquette dans le coin des pochettes, version compacte dans les listes.
+const hrHTML = it => it.hires ? '<span class="q-badge">Hi-Res</span>' : '';
+const cardHTML = it => `<a class="card" href="${browseHref(it)}"><div class="cover">${coverHTML(it)}${it.hires ? '<span class="q-badge q-over">Hi-Res</span>' : ''}</div><div class="c-title one">${esc(it.title)}</div><div class="c-sub one muted">${esc(it.subtitle)}</div></a>`;
 function trackRowHTML(it, n, ctx) {
   const lead = n != null ? `<div class="t-num">${n}</div>` : '';
   const cover = it.image ? `<img class="t-cover" loading="lazy" src="${esc(it.image)}" alt="">` : (n != null ? '' : `<div class="t-cover ph">${I.note}</div>`);
   const ctxAttr = ctx ? ` data-ctx='${esc(JSON.stringify(ctx))}'` : '';
-  return `<div class="track" data-item='${jsonAttr(it)}'${ctxAttr}>${lead}${cover}<div class="t-meta"><div class="t-title one">${esc(it.title)}</div><div class="t-sub one muted">${esc(it.subtitle)}</div></div><button class="icon-btn t-add" data-act="add" aria-label="Ajouter à la file">${I.plus}</button></div>`;
+  return `<div class="track" data-item='${jsonAttr(it)}'${ctxAttr}>${lead}${cover}<div class="t-meta"><div class="t-title one">${esc(it.title)}</div><div class="t-sub one muted">${n == null ? hrHTML(it) : ''}${esc(it.subtitle)}</div></div><button class="icon-btn t-add" data-act="add" aria-label="Ajouter à la file">${I.plus}</button></div>`;
 }
 function folderRowHTML(it) {
   const lead = it.icon ? `<div class="row-ico">${I[it.icon] || I.folder}</div>` : (it.image ? `<img class="t-cover" loading="lazy" src="${esc(it.image)}" alt="">` : `<div class="avatar">${esc((it.title || '?').trim()[0].toUpperCase())}</div>`);
@@ -324,7 +326,7 @@ async function viewBrowse(id, params, seq) {
   const d = await api(`/api/browse?id=${encodeURIComponent(id)}&start=0&count=100`); if (seq !== renderSeq) return;
   // Titre de la carte d'abord (« Album » / « Artiste · année ») : l'en-tête LMS
   // est moins lisible (« Artiste - Album », année seule).
-  browseCtx = { id, seq, sections: d.sections, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', image: i || d.image, count: d.count, items: d.items };
+  browseCtx = { id, seq, sections: d.sections, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', quality: d.quality || params.get('q') || '', image: i || d.image, count: d.count, items: d.items };
   setTitle(browseCtx.title || 'Parcourir');
   renderBrowse();
 }
@@ -353,7 +355,7 @@ function renderBrowse() {
     const nb = c.count > items.length ? c.count - folders.length : tracks.length;
     html += `<div class="album-head" data-item='${jsonAttr({ id: c.id, title: c.title, subtitle: c.subtitle, image: c.image, kind: 'collection' })}'>
       ${c.image ? `<img class="album-art" src="${esc(c.image)}" alt="">` : ''}
-      <div class="album-meta"><h2>${esc(c.title)}</h2>${c.subtitle || c.hires ? `<div class="muted">${hrHTML(c)}${esc(c.subtitle)}</div>` : ''}<div class="muted small">${nb} titre${nb > 1 ? 's' : ''}</div>
+      <div class="album-meta"><h2>${esc(c.title)}</h2>${c.subtitle ? `<div class="muted">${esc(c.subtitle)}</div>` : ''}${c.hires ? `<div class="q-line">${hrHTML(c)}${c.quality ? `<span>${esc(c.quality)}</span>` : ''}</div>` : ''}<div class="muted small">${nb} titre${nb > 1 ? 's' : ''}</div>
       <div class="album-actions"><button class="btn primary" data-act="play">${I.play}<span>Lire</span></button><button class="btn" data-act="add">${I.plus}<span>Ajouter à la file</span></button></div></div></div>`;
     html += `<div class="tracks">${tracks.map((it, k) => trackRowHTML(it, k + 1, { id: c.id, index: it.pos != null ? it.pos : k })).join('')}</div>`;
     if (texts.length) html += texts.map(x => `<p class="text-item">${esc(x.title)}</p>`).join('');

@@ -100,6 +100,16 @@ def _hires(x: dict) -> bool:
     )
 
 
+def _quality(x: dict) -> str | None:
+    """Qualité Hi-Res lisible, ex. « 24 bits / 96 kHz » (None en qualité CD)."""
+    info = x.get("audio_info") or {}
+    bits = x.get("maximum_bit_depth") or info.get("maximum_bit_depth")
+    rate = x.get("maximum_sampling_rate") or info.get("maximum_sampling_rate")
+    if not bits or not rate or bits <= 16:
+        return None
+    return f"{bits} bits / {rate:g} kHz".replace(".", ",")
+
+
 def _portrait(x: dict, size: str) -> str | None:
     p = (x.get("images") or {}).get("portrait") or {}
     return PORTRAIT.format(size=size, hash=p["hash"], fmt=p.get("format") or "jpg") if p.get("hash") else None
@@ -125,6 +135,7 @@ def album_item(a: dict) -> dict:
         "title": _with_version(a.get("title") or "", a.get("version")),
         "subtitle": _join(_name(a.get("artist")), _year(a)),
         "hires": _hires(a),
+        "quality": _quality(a),
         "image": img.get("small") or img.get("thumbnail"),
         "image_large": img.get("large") or img.get("small"),
         "url": None,
@@ -158,6 +169,7 @@ def track_item(t: dict, album: dict | None = None, pos: int | None = None) -> di
         "title": _with_version(t.get("title") or "", t.get("version")),
         "subtitle": _join(performer, album.get("title")),
         "hires": _hires(t),
+        "quality": _quality(t),
         "image": img.get("small") or img.get("thumbnail"),
         "image_large": img.get("large") or img.get("small"),
         "url": track_url(t["id"]),
@@ -261,8 +273,10 @@ async def browse(client: httpx.AsyncClient, item_id: str, start: int = 0, count:
         tracks = (a.get("tracks") or {}).get("items", [])
         items = [track_item(t, a, pos=k) for k, t in enumerate(tracks)]
         head = album_item(a)
-        return _page(item_id, head["title"], head["subtitle"], items, len(items), 0,
+        page = _page(item_id, head["title"], head["subtitle"], items, len(items), 0,
                      head["image_large"], head["hires"])
+        page["quality"] = head["quality"]
+        return page
 
     if kind == "playlist":
         p = await get(client, "playlist/get", playlist_id=parts[2], extra="tracks",
