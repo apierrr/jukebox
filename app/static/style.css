@@ -205,3 +205,9 @@ body.has-mini .toast{bottom:calc(var(--tabs-h) + var(--mini-h) + var(--sab) + 26
 .fact{display:contents}
 .about-text{margin:0 6px 8px;font-size:14.5px;line-height:1.55}
 .about-text p{margin:0 0 12px;white-space:pre-line}
+
+/* panneau de confirmation */
+.sheet-body.confirm h3{margin:4px 6px 6px;font-size:18px}
+.sheet-body.confirm p{margin:0 6px 12px;font-size:14px}
+.sheet-btn.danger{color:var(--danger);justify-content:center;font-weight:600}
+.sheet-btn.danger svg{color:var(--danger)}

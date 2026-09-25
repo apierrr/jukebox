@@ -146,6 +146,18 @@ function openSheet(it) {
     const b = e.target.closest('[data-m]'); if (b) { closeSheet(); doPlay(it, b.dataset.m); }
   };
 }
+// Confirmation dans l'app (plutôt que la fenêtre confirm() du navigateur)
+function confirmSheet({ title, text, label, icon, onConfirm }) {
+  const sh = $('#sheet');
+  sh.innerHTML = `<div class="sheet-bg" data-close></div><div class="sheet-body confirm"><h3>${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}
+    <button class="sheet-btn danger" data-ok>${icon || ''}<span>${esc(label)}</span></button>
+    <button class="sheet-btn cancel" data-close>Annuler</button></div>`;
+  sh.classList.remove('hidden'); requestAnimationFrame(() => sh.classList.add('open'));
+  sh.onclick = e => {
+    if (e.target.closest('[data-close]')) return closeSheet();
+    if (e.target.closest('[data-ok]')) { closeSheet(); onConfirm(); }
+  };
+}
 // Présentation d'un album ou biographie d'un artiste (bouton « i »)
 function openAbout(a) {
   if (!a) return;
@@ -396,7 +408,15 @@ async function loadMore() {
 function viewQueue() {
   setTitle('File d’attente');
   view.innerHTML = `<div class="q-head"><div><h2 id="q-count"></h2><div class="muted small">Touchez un titre pour y sauter</div></div><button class="btn danger small" id="q-clear">${I.trash}<span>Vider</span></button></div><div id="q-rows" class="tracks"></div>`;
-  $('#q-clear').addEventListener('click', () => { if (confirm('Vider toute la file d’attente ?')) control('clear'); });
+  $('#q-clear').addEventListener('click', () => {
+    const n = state.queue.length;
+    confirmSheet({
+      title: 'Vider la file d’attente ?',
+      text: `${n} titre${n > 1 ? 's' : ''} ${n > 1 ? 'seront retirés' : 'sera retiré'}, et la lecture s’arrête.`,
+      label: 'Vider la file', icon: I.trash,
+      onConfirm: async () => { await control('clear'); toast('File vidée', 'ok'); },
+    });
+  });
   $('#q-rows').addEventListener('click', e => {
     const rm = e.target.closest('[data-rm]'); if (rm) { e.stopPropagation(); control('remove', +rm.dataset.rm); return; }
     const row = e.target.closest('[data-idx]'); if (row) control('jump', +row.dataset.idx);
