@@ -433,9 +433,11 @@ function renderQueueRows() {
   if (!q.length) { rows.innerHTML = emptyHTML('La file est vide.<br>Cherchez un titre et ajoutez-le !', `<a class="btn primary" href="#/search">${I.search}<span>Rechercher</span></a>`); return; }
   // Après le titre en cours : d'abord les titres ajoutés (« voulus »), puis la
   // suite du lancement (« par défaut »), chacun sous son intertitre.
+  // Intertitres seulement si les deux blocs coexistent après le titre en cours.
+  const both = q.some(t => t.index > cur && t.auto) && q.some(t => t.index > cur && !t.auto);
   let sawWanted = false, sawAuto = false;
   const sep = t => {
-    if (t.index <= cur) return '';
+    if (!both || t.index <= cur) return '';
     if (!t.auto && !sawWanted && !sawAuto) { sawWanted = true; return '<div class="q-sep">Ajoutés à la file</div>'; }
     if (t.auto && !sawAuto) { sawAuto = true; return '<div class="q-sep">Suite de la lecture</div>'; }
     return '';
