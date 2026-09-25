@@ -240,6 +240,12 @@ async def browse_items(item_id: str | None, start: int = 0, count: int = 50, sea
     items = [n for n in (norm(it) for it in r.get("item_loop", [])) if n]
     for n in items:
         remember_track(n)
+        # Albums et playlists LMS → pages Qobuz directes (plus rapides, avec
+        # présentation, qualité exacte et lien vers l'artiste)
+        if n["kind"] == "collection" and qobuz.available():
+            qz = qobuz.qobuz_id_from_image(n.get("image_large") or n.get("image"))
+            if qz:
+                n["id"] = qz
     title = [l.strip() for l in (r.get("title") or "").split("\n")]
     title[0], hires = clean_title(title[0])
     image = next((i["image_large"] for i in items if i["kind"] == "track" and i["image_large"]), None)
@@ -754,7 +760,30 @@ async def api_browse(req: Request, id: str = "", start: int = 0, count: int = 10
         for it in page["items"]:
             remember_qobuz_track(it)
         return cache_put(key, page)
-    return await browse_items(id or None, max(0, start), count, search or None)
+    page = await browse_items(id or None, max(0, start), count, search or None)
+    artist = await qobuz_artist_for_lms_page(page)
+    return artist or page
+
+
+LMS_ARTIST_FOLDERS = {"releases", "songs", "biography", "similar artists"}
+
+
+async def qobuz_artist_for_lms_page(page: dict) -> dict | None:
+    """Une page d'artiste LMS (dossiers Releases / Songs / Biography / Similar
+    Artists) est remplacée par la page artiste Qobuz, retrouvée par le nom."""
+    folders = {(it.get("title") or "").lower() for it in page["items"] if it.get("kind") == "folder"}
+    if len(folders & LMS_ARTIST_FOLDERS) < 3 or not qobuz.available() or not page.get("title"):
+        return None
+    key = f"lms-artist:{page['title']}"
+    hit = cache_get(key, 3600)
+    if hit:
+        return hit
+    try:
+        aid = await qobuz.artist_id_by_name(client, page["title"])
+        return cache_put(key, await qobuz.artist_page(client, aid)) if aid else None
+    except qobuz.QobuzError as e:
+        log.info("page artiste Qobuz introuvable pour « %s » (%s)", page["title"], e)
+        return None
 
 
 SEARCH_CATS = [("releases", "Albums"), ("artists", "Artistes"), ("songs", "Titres"), ("playlists", "Playlists")]

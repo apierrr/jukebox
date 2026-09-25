@@ -84,6 +84,13 @@ l'enceinte à cette position, pause ne coupe pas l'autre source.
 - La recherche d'artistes de Qobuz compare les noms à *toute* la requête
   ("angele brol" donne "Angela Brown") : les artistes des albums et titres
   trouvés passent devant, puis ceux dont le nom figure dans la requête.
+- Pages venues de LMS (accueil, genres, favoris, playlists) : les pochettes et
+  images de playlists servies par LMS contiennent l'identifiant Qobuz
+  (`.../images/covers/ya/59/<album>_300.jpg`, `.../images/playlists/<id>_...`).
+  Albums et playlists de ces listes pointent donc vers les pages Qobuz
+  (`qobuz_id_from_image`, 25 albums sur 25 vérifiés). Une page d'artiste LMS
+  (dossiers Releases, Songs, Biography, Similar Artists) est remplacée par la
+  page Qobuz de l'artiste, retrouvé par son nom exact.
 - Lecture : file remplie jusqu'à la piste visée, un seul `playlist index` (un
   seul démarrage de flux), reste de l'album ajouté en arrière-plan (tâche
   annulée si une autre lecture est demandée entre-temps).

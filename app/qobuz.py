@@ -147,6 +147,19 @@ def album_about(a: dict) -> dict | None:
     return about if about["text"] or about["facts"] else None
 
 
+def playlist_about(p: dict) -> dict | None:
+    """Texte et fiche d'une playlist pour le bouton « i »."""
+    facts = [
+        ("Par", (p.get("owner") or {}).get("name")),
+        ("Titres", str(p["tracks_count"]) if p.get("tracks_count") else None),
+        ("Durée", _duration(p.get("duration"))),
+        ("Genres", ", ".join(g.get("name") for g in p.get("genres") or [] if g.get("name"))),
+    ]
+    about = {"title": p.get("name") or p.get("title") or "", "text": _plain(p.get("description")),
+             "facts": [[k, v] for k, v in facts if v]}
+    return about if about["text"] or about["facts"] else None
+
+
 def _portrait(x: dict, size: str) -> str | None:
     p = (x.get("images") or {}).get("portrait") or {}
     return PORTRAIT.format(size=size, hash=p["hash"], fmt=p.get("format") or "jpg") if p.get("hash") else None
@@ -322,8 +335,10 @@ async def browse(client: httpx.AsyncClient, item_id: str, start: int = 0, count:
         block = p.get("tracks") or {}
         items = [track_item(t, pos=start + k) for k, t in enumerate(block.get("items", []))]
         head = playlist_item(p)
-        return _page(item_id, head["title"], head["subtitle"], items,
+        page = _page(item_id, head["title"], head["subtitle"], items,
                      int(block.get("total") or len(items)), start, head["image_large"])
+        page["about"] = playlist_about(p) if start == 0 else None
+        return page
 
     if kind == "artist":
         return await artist_page(client, parts[2])
@@ -351,6 +366,33 @@ async def browse(client: httpx.AsyncClient, item_id: str, start: int = 0, count:
         return _page(item_id, q, "", items, int(block.get("total") or len(items)), start)
 
     raise QobuzError(f"identifiant inconnu : {item_id}")
+
+
+# Les pochettes et images de playlists servies par LMS contiennent l'identifiant
+# Qobuz : …/images/covers/ya/59/<album>_300.jpg, …/images/playlists/<id>_….jpg
+_COVER_ID = re.compile(r"/images/covers/[^/]+/[^/]+/([a-z0-9]+)_\d+\.jpg")
+_PLAYLIST_ID = re.compile(r"/images/playlists/(\d+)_")
+
+
+def qobuz_id_from_image(image: str | None) -> str | None:
+    """« qz:album:<id> » ou « qz:playlist:<id> » d'après l'image d'un élément LMS."""
+    if not image:
+        return None
+    m = _PLAYLIST_ID.search(image)
+    if m:
+        return f"qz:playlist:{m.group(1)}"
+    m = _COVER_ID.search(image)
+    return f"qz:album:{m.group(1)}" if m else None
+
+
+async def artist_id_by_name(client: httpx.AsyncClient, name: str) -> str | None:
+    """Identifiant Qobuz d'un artiste d'après son nom exact (accents ignorés)."""
+    data = await get(client, "artist/search", query=name, limit=10)
+    want = _fold(name)
+    for ar in (data.get("artists") or {}).get("items", []):
+        if _fold(_name(ar)) == want:
+            return str(ar["id"])
+    return None
 
 
 RELEASE_TYPES = [("album", "Albums"), ("epSingle", "EP & singles"), ("live", "Live"),
