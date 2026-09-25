@@ -14,6 +14,7 @@ const I = {
   library: svg('<path d="M4 5h4v14H4zM10 5h4v14h-4zM16.5 5.5l3.5 1-3 13-3.5-1z"/>'),
   queue: svg('<path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 12v6l4-3z" fill="currentColor"/>'),
   play: svg('<path d="M7 5v14l12-7z" fill="currentColor" stroke="none"/>'),
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".7" fill="currentColor"/>'),
   pause: svg('<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/>'),
   next: svg('<path d="M6 5l10 7-10 7z" fill="currentColor" stroke="none"/><path d="M18 5v14"/>'),
   prev: svg('<path d="M18 5L8 12l10 7z" fill="currentColor" stroke="none"/><path d="M6 5v14"/>'),
@@ -117,6 +118,7 @@ view.addEventListener('click', e => {
     const host = act.closest('[data-item]');
     const it = host ? JSON.parse(host.dataset.item) : null;
     if (act.dataset.act === 'more') return loadMore();
+    if (act.dataset.act === 'about') return openAbout(browseCtx && browseCtx.about);
     return doPlay(it, act.dataset.act);
   }
   const tr = e.target.closest('.track[data-item]');
@@ -143,6 +145,16 @@ function openSheet(it) {
     if (e.target.closest('[data-close]')) return closeSheet();
     const b = e.target.closest('[data-m]'); if (b) { closeSheet(); doPlay(it, b.dataset.m); }
   };
+}
+// Présentation d'un album ou biographie d'un artiste (bouton « i »)
+function openAbout(a) {
+  if (!a) return;
+  const sh = $('#sheet');
+  const facts = (a.facts || []).map(([k, v]) => `<div class="fact"><span class="muted">${esc(k)}</span><span>${esc(v)}</span></div>`).join('');
+  const text = (a.text || '').split('\n\n').map(p => `<p>${esc(p)}</p>`).join('');
+  sh.innerHTML = `<div class="sheet-bg" data-close></div><div class="sheet-body about"><h3>${esc(a.title)}</h3>${facts ? `<div class="facts">${facts}</div>` : ''}${text ? `<div class="about-text">${text}</div>` : ''}<button class="sheet-btn cancel" data-close>Fermer</button></div>`;
+  sh.classList.remove('hidden'); requestAnimationFrame(() => sh.classList.add('open'));
+  sh.onclick = e => { if (e.target.closest('[data-close]')) closeSheet(); };
 }
 function closeSheet() { const sh = $('#sheet'); sh.classList.remove('open'); setTimeout(() => sh.classList.add('hidden'), 220); }
 
@@ -326,7 +338,7 @@ async function viewBrowse(id, params, seq) {
   const d = await api(`/api/browse?id=${encodeURIComponent(id)}&start=0&count=100`); if (seq !== renderSeq) return;
   // Titre de la carte d'abord (« Album » / « Artiste · année ») : l'en-tête LMS
   // est moins lisible (« Artiste - Album », année seule).
-  browseCtx = { id, seq, sections: d.sections, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', quality: d.quality || params.get('q') || '', image: i || d.image, count: d.count, items: d.items };
+  browseCtx = { id, seq, sections: d.sections, about: d.about, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', quality: d.quality || params.get('q') || '', image: i || d.image, count: d.count, items: d.items };
   setTitle(browseCtx.title || 'Parcourir');
   renderBrowse();
 }
@@ -342,7 +354,7 @@ function browseSectionHTML(sec) {
 function renderBrowse() {
   const c = browseCtx, items = c.items;
   if (c.sections) {
-    view.innerHTML = `<div class="artist-head">${c.image ? `<img class="artist-pic" src="${esc(c.image)}" alt="">` : ''}<h2 class="page-title">${esc(c.title)}</h2></div>`
+    view.innerHTML = `<div class="artist-head">${c.image ? `<img class="artist-pic" src="${esc(c.image)}" alt="">` : ''}<h2 class="page-title">${esc(c.title)}</h2>${c.about ? `<button class="btn icon-round" data-act="about" aria-label="Biographie">${I.info}</button>` : ''}</div>`
       + (c.sections.length ? c.sections.map(browseSectionHTML).join('') : emptyHTML('Rien ici.'));
     return;
   }
@@ -356,7 +368,7 @@ function renderBrowse() {
     html += `<div class="album-head" data-item='${jsonAttr({ id: c.id, title: c.title, subtitle: c.subtitle, image: c.image, kind: 'collection' })}'>
       ${c.image ? `<img class="album-art" src="${esc(c.image)}" alt="">` : ''}
       <div class="album-meta"><h2>${esc(c.title)}</h2>${c.subtitle ? `<div class="muted">${esc(c.subtitle)}</div>` : ''}${c.hires ? `<div class="q-line">${hrHTML(c)}${c.quality ? `<span>${esc(c.quality)}</span>` : ''}</div>` : ''}<div class="muted small">${nb} titre${nb > 1 ? 's' : ''}</div>
-      <div class="album-actions"><button class="btn primary" data-act="play">${I.play}<span>Lire</span></button><button class="btn" data-act="add">${I.plus}<span>Ajouter à la file</span></button></div></div></div>`;
+      <div class="album-actions"><button class="btn primary" data-act="play">${I.play}<span>Lire</span></button><button class="btn" data-act="add">${I.plus}<span>Ajouter à la file</span></button>${c.about ? `<button class="btn icon-round" data-act="about" aria-label="À propos de l'album">${I.info}</button>` : ''}</div></div></div>`;
     html += `<div class="tracks">${tracks.map((it, k) => trackRowHTML(it, k + 1, { id: c.id, index: it.pos != null ? it.pos : k })).join('')}</div>`;
     if (texts.length) html += texts.map(x => `<p class="text-item">${esc(x.title)}</p>`).join('');
     if (folders.length) html += `<h3 class="sub-title">À propos</h3><div class="list">${folders.map(folderRowHTML).join('')}</div>`;

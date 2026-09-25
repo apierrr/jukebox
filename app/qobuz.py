@@ -17,8 +17,10 @@ monté en lecture seule), avec son identifiant d'application.
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import os
+import re
 import unicodedata
 import urllib.parse
 from pathlib import Path
@@ -108,6 +110,41 @@ def _quality(x: dict) -> str | None:
     if not bits or not rate or bits <= 16:
         return None
     return f"{bits} bits / {rate:g} kHz".replace(".", ",")
+
+
+def _plain(text: str | None) -> str:
+    """HTML de Qobuz (présentations, biographies) → paragraphes en texte brut."""
+    if not text:
+        return ""
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</p\s*>", "\n\n", text)
+    text = html.unescape(re.sub(r"<[^>]+>", "", text))
+    paras = (re.sub(r"[ \t\u00a0]+", " ", p).strip() for p in re.split(r"\n\s*\n", text))
+    return "\n\n".join(p for p in paras if p)
+
+
+def _duration(seconds: int | None) -> str | None:
+    if not seconds:
+        return None
+    h, m = divmod(round(seconds / 60), 60)
+    return f"{h} h {m:02d} min" if h else f"{m} min"
+
+
+def album_about(a: dict) -> dict | None:
+    """Texte et fiche d'un album pour le bouton « i »."""
+    date = a.get("release_date_original") or ""
+    facts = [
+        ("Label", (a.get("label") or {}).get("name")),
+        ("Genre", (a.get("genre") or {}).get("name")),
+        ("Sortie", "/".join(reversed(date.split("-"))) if date else None),
+        ("Qualité", _quality(a) or "CD, 16 bits / 44,1 kHz"),
+        ("Durée", _duration(a.get("duration"))),
+        ("Distinctions", ", ".join(x.get("name") for x in a.get("awards") or [] if x.get("name"))),
+        ("Copyright", a.get("copyright")),
+    ]
+    about = {"title": a.get("title") or "", "text": _plain(a.get("description")),
+             "facts": [[k, v] for k, v in facts if v]}
+    return about if about["text"] or about["facts"] else None
 
 
 def _portrait(x: dict, size: str) -> str | None:
@@ -276,6 +313,7 @@ async def browse(client: httpx.AsyncClient, item_id: str, start: int = 0, count:
         page = _page(item_id, head["title"], head["subtitle"], items, len(items), 0,
                      head["image_large"], head["hires"])
         page["quality"] = head["quality"]
+        page["about"] = album_about(a)
         return page
 
     if kind == "playlist":
@@ -344,6 +382,8 @@ async def artist_page(client: httpx.AsyncClient, artist_id: str) -> dict:
                          "count": len(playlists), "items": playlists})
     page = _page(f"qz:artist:{artist_id}", _name(p), "", [], 0, 0, _portrait(p, "large"))
     page["sections"] = sections
+    bio = _plain((p.get("biography") or {}).get("content"))
+    page["about"] = {"title": _name(p), "text": bio, "facts": []} if bio else None
     return page
 
 
