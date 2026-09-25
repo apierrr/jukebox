@@ -19,7 +19,9 @@ fonctionne avec n'importe quel lecteur LMS.
   lives, compilations, artistes similaires. Badge Hi-Res et année de sortie
   pour distinguer les éditions.
 - Lecture d'un album depuis n'importe quelle piste, "Lire ensuite", "Ajouter à
-  la file", file réordonnable, volume plafonné.
+  la file", file réordonnable, volume plafonné. Les titres ajoutés passent
+  avant la suite de l'album en cours, et un titre lancé depuis une recherche
+  part seul.
 - État en temps réel (Server-Sent Events) : titre, position, file, volume, avec
   reconnexion automatique quand le téléphone sort de veille.
 - Accueil avec les nouveautés, sélections, meilleures ventes et favoris du compte.

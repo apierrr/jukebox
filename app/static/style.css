@@ -211,3 +211,6 @@ body.has-mini .toast{bottom:calc(var(--tabs-h) + var(--mini-h) + var(--sab) + 26
 .sheet-body.confirm p{margin:0 6px 12px;font-size:14px}
 .sheet-btn.danger{color:var(--danger);justify-content:center;font-weight:600}
 .sheet-btn.danger svg{color:var(--danger)}
+
+/* file d'attente : intertitres « Ajoutés à la file » / « Suite de la lecture » */
+.q-sep{padding:16px 4px 6px;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}

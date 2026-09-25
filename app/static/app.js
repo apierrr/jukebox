@@ -99,7 +99,7 @@ async function doPlay(it, mode) {
   try {
     const body = { id: it.id, mode };
     if (mode === 'context' && it.index != null) body.index = it.index;
-    if (mode === 'context' && it.url) body.url = it.url;
+    if (it.url) body.url = it.url;   // un titre seul se lance par son adresse
     if (it.search) body.search = it.search;
     const s = await api('/api/play', { method: 'POST', body });
     applyState(s); applyQueue(s.queue);
@@ -372,7 +372,9 @@ function renderBrowse() {
   }
   const tracks = items.filter(x => x.kind === 'track'), colls = items.filter(x => x.kind === 'collection');
   const folders = items.filter(x => x.kind === 'folder'), texts = items.filter(x => x.kind === 'text');
-  const isAlbum = tracks.length > 0 && colls.length === 0;   // album ou playlist : pistes (+ infos annexes)
+  // Liste de résultats de recherche : pas un album, chaque titre se lance seul
+  const isSearchList = String(c.id).startsWith('qz:search:');
+  const isAlbum = !isSearchList && tracks.length > 0 && colls.length === 0;   // album ou playlist : pistes (+ infos annexes)
   let html = '';
   if (!items.length) html = emptyHTML('Rien ici.');
   else if (isAlbum) {
@@ -429,7 +431,16 @@ function renderQueueRows() {
   $('#q-count').textContent = q.length ? `${q.length} titre${q.length > 1 ? 's' : ''}` : 'File vide';
   $('#q-clear').classList.toggle('hidden', !q.length);
   if (!q.length) { rows.innerHTML = emptyHTML('La file est vide.<br>Cherchez un titre et ajoutez-le !', `<a class="btn primary" href="#/search">${I.search}<span>Rechercher</span></a>`); return; }
-  rows.innerHTML = q.map(t => `<div class="track ${t.index === cur ? 'current' : ''}" data-idx="${t.index}">
+  // Après le titre en cours : d'abord les titres ajoutés (« voulus »), puis la
+  // suite du lancement (« par défaut »), chacun sous son intertitre.
+  let sawWanted = false, sawAuto = false;
+  const sep = t => {
+    if (t.index <= cur) return '';
+    if (!t.auto && !sawWanted && !sawAuto) { sawWanted = true; return '<div class="q-sep">Ajoutés à la file</div>'; }
+    if (t.auto && !sawAuto) { sawAuto = true; return '<div class="q-sep">Suite de la lecture</div>'; }
+    return '';
+  };
+  rows.innerHTML = q.map(t => `${sep(t)}<div class="track ${t.index === cur ? 'current' : ''}" data-idx="${t.index}">
     ${t.index === cur ? `<div class="t-num eq ${playing ? 'on' : ''}"><i></i><i></i><i></i></div>` : `<div class="t-num">${t.index + 1}</div>`}
     ${t.image ? `<img class="t-cover" loading="lazy" src="${esc(t.image)}" alt="">` : `<div class="t-cover ph">${I.note}</div>`}
     <div class="t-meta"><div class="t-title one">${esc(t.title)}</div><div class="t-sub one muted">${esc([t.artist, t.album].filter(Boolean).join(' · '))}</div></div>

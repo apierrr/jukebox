@@ -101,3 +101,27 @@ l'enceinte à cette position, pause ne coupe pas l'autre source.
   worker se recharge à chaque nouvelle valeur de `V` dans `sw.js`.
 - Rangées horizontales : `scroll-padding-inline` doit égaler le retrait latéral,
   sinon l'aimantation (`scroll-snap`) colle la première carte au bord.
+
+## File d'attente : titres voulus et titres par défaut
+
+Deux sortes de titres cohabitent dans la file :
+
+- par défaut : ce qui vient avec un lancement, c'est-à-dire la suite de
+  l'album quand on lance une de ses pistes ou le bouton Lire, et de même pour
+  une playlist ou les titres populaires d'un artiste ;
+- voulus : tout ce qu'on ajoute soi-même, y compris un album entier via
+  "Ajouter à la file".
+
+Un titre voulu s'insère après le titre en cours et les voulus qui le suivent,
+juste avant le premier titre par défaut (`_wanted_slot`). En écoutant A, on
+ajoute B puis C : A, B, C, puis la suite de l'album. LMS ne sait qu'ajouter en
+fin de file : chaque ajout est suivi d'un `playlist move` vers sa place.
+"Lire ensuite" reste un `playlist insert`, juste après le titre en cours.
+
+Jukebox retient les adresses des titres par défaut (`_queue_default`), remises
+à zéro à chaque lancement et quand on vide la file. Chaque entrée de file porte
+`auto` ; l'app affiche les intertitres "Ajoutés à la file" et "Suite de la
+lecture". Un titre lancé depuis une recherche ou une liste de résultats part
+seul (`play_single`), y compris un titre venu de LMS : il est lancé par son
+adresse, sinon le réglage "jouer tout l'album" de LMS embarquerait toute la
+liste qui l'entoure.

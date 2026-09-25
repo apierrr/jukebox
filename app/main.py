@@ -305,6 +305,7 @@ def queue_entry(t: dict, index: int) -> dict:
         "duration": float(t.get("duration") or 0),
         "image": track_image(t) if t.get("artwork_url") else None,
         "url": t.get("url"),
+        "auto": (t.get("url") or "") in _queue_default,  # « par défaut » (suite d'un lancement)
     }
     seen = _seen_tracks.get(e["url"] or "")
     if not e["artist"]:
@@ -877,9 +878,22 @@ async def wake_speaker() -> None:
         await asyncio.sleep(0.8)
 
 
-# Remplissage de la file en arrière-plan (albums/playlists longs) : annulé si
-# une nouvelle demande de lecture arrive, pour ne pas mélanger deux albums.
+# ------------------------------------------------------------ file d'attente
+# Deux sortes de titres dans la file : ceux qu'on a demandés (« voulus ») et
+# ceux qui viennent avec un lancement (« par défaut » : la suite de l'album, de
+# la playlist ou des titres populaires). Un ajout se place après le titre en
+# cours et les voulus qui le suivent, mais avant les titres par défaut : on
+# écoute A, on ajoute B puis C : A, B, C, puis la suite de l'album.
+_queue_default: set[str] = set()   # adresses des titres « par défaut »
 _fill_task: asyncio.Task | None = None
+SINGLE_TRACK = re.compile(r"^qobuz://\d+\.\w+$")
+
+
+def _cancel_fill() -> None:
+    """Le remplissage en arrière-plan d'un lancement précédent ne doit pas
+    se mélanger à une nouvelle demande."""
+    if _fill_task and not _fill_task.done():
+        _fill_task.cancel()
 
 
 async def _add_all(urls: list[str], cmd: str = "add") -> None:
@@ -887,21 +901,86 @@ async def _add_all(urls: list[str], cmd: str = "add") -> None:
         await lms(["playlist", cmd, u])
 
 
-def _fill_later(urls: list[str], cmd: str = "add") -> None:
+def _fill_later(urls: list[str]) -> None:
     global _fill_task
     if urls:
-        _fill_task = asyncio.create_task(_add_all(urls, cmd))
+        _fill_task = asyncio.create_task(_add_all(urls))
+
+
+async def _queue_urls() -> tuple[list[str], int]:
+    st = await lms(["status", 0, 2000, "tags:u"])
+    return [t.get("url") or "" for t in st.get("playlist_loop", [])], int(st.get("playlist_cur_index") or 0)
+
+
+def _wanted_slot(urls: list[str], cur: int) -> int:
+    """Où insérer un titre voulu : après le titre en cours et les voulus qui
+    le suivent, juste avant le premier titre par défaut (ou en fin de file)."""
+    p = cur + 1
+    while p < len(urls) and urls[p] not in _queue_default:
+        p += 1
+    return p
+
+
+async def _add_wanted(urls: list[str], was_empty: bool) -> None:
+    queue, cur = await _queue_urls()
+    slot = _wanted_slot(queue, cur) if queue else 0
+    end = len(queue)
+    for k, u in enumerate(urls):
+        await lms(["playlist", "add", u])          # ajouté en fin de file...
+        if slot < end:
+            await lms(["playlist", "move", end + k, slot + k])  # ...puis remonté à sa place
+    if was_empty:
+        await lms(["play"])
+
+
+async def _move_new_block(n0: int, slot: int) -> None:
+    """Remonte avant les titres par défaut le bloc que LMS vient d'ajouter en
+    fin de file (le plugin Qobuz remplit la file de façon asynchrone)."""
+    n1, stable = n0, 0
+    for _ in range(24):
+        await asyncio.sleep(0.25)
+        n = int((await lms(["status", "-", 1])).get("playlist_tracks") or 0)
+        stable = stable + 1 if n == n1 and n > n0 else 0
+        n1 = n
+        if stable >= 2:
+            break
+    if slot < n0:
+        for k in range(n1 - n0):
+            await lms(["playlist", "move", n0 + k, slot + k])
+
+
+async def _mark_default_after_current() -> None:
+    """Après un lancement par LMS (album de l'accueil...), tout ce qui suit le
+    titre en cours est « par défaut »."""
+    global _queue_default
+    urls, cur = await _queue_urls()
+    _queue_default = set(urls[cur + 1:])
+
+
+async def play_single(url: str) -> None:
+    """Un titre seul, sans rien derrière (recherche, liste de résultats)."""
+    global _queue_default
+    _cancel_fill()
+    _queue_default = set()
+    await lms(["playlist", "clear"])
+    await lms(["playlist", "add", url])
+    await lms(["playlist", "index", 0])
 
 
 async def qobuz_play(item_id: str, mode: str, body: dict, before: dict) -> None:
-    """Met en file / lance un élément qz:… (piste, album, playlist).
+    """Met en file / lance un élément qz:... (piste, album, playlist, titres populaires).
 
     Un seul démarrage de flux : on remplit la file jusqu'à la piste voulue,
-    on saute dessus, puis le reste s'ajoute en arrière-plan.
+    on saute dessus, puis le reste (« par défaut ») s'ajoute en arrière-plan.
     """
-    global _fill_task
-    if _fill_task and not _fill_task.done():
-        _fill_task.cancel()
+    global _queue_default
+    if item_id.startswith("qz:search:"):
+        # une liste de résultats n'est pas un contexte : le titre seul
+        target = str(body.get("url") or "")
+        if mode in ("play", "context") and SINGLE_TRACK.match(target):
+            await play_single(target)
+            return
+        raise HTTPException(400, "Choisissez un titre de la liste")
     try:
         tracks = await qobuz.track_urls(client, item_id)
     except qobuz.QobuzError as e:
@@ -912,21 +991,20 @@ async def qobuz_play(item_id: str, mode: str, body: dict, before: dict) -> None:
     if not urls:
         raise HTTPException(404, "Rien à lire")
     if mode in ("play", "context"):
+        _cancel_fill()
         k = 0
         if mode == "context":
             target = str(body.get("url") or "")
             k = urls.index(target) if target in urls else max(0, min(len(urls) - 1, int(body.get("index") or 0)))
+        _queue_default = set(urls[k + 1:])        # cas A et B : la suite est « par défaut »
         await lms(["playlist", "clear"])
         await _add_all(urls[: k + 1])
         await lms(["playlist", "index", k])
         _fill_later(urls[k + 1:])
     elif mode == "add":
-        await lms(["playlist", "add", urls[0]])
-        if before["count"] == 0:
-            await lms(["play"])  # file vide : on démarre la lecture
-        _fill_later(urls[1:])
+        await _add_wanted(urls, before["count"] == 0)   # cas C : tout est « voulu »
     elif mode == "insert":
-        # « Lire ensuite » : insérer à l'envers garde l'ordre de l'album
+        # « Lire ensuite » : juste après le titre en cours ; à l'envers pour garder l'ordre
         await _add_all(list(reversed(urls)), "insert")
 
 
@@ -943,15 +1021,26 @@ async def api_play(req: Request):
     if starts_playback:
         await wake_speaker()
         poller.note()
+    url = str(body.get("url") or "")
     if item_id.startswith("qz:"):
         await qobuz_play(item_id, mode, body, before)
+    elif mode != "context" and SINGLE_TRACK.match(url):
+        # un titre issu de LMS : par son adresse, pour ne pas embarquer la
+        # liste qui l'entoure (réglage « jouer tout l'album » de LMS)
+        if mode == "play":
+            await play_single(url)
+        elif mode == "add":
+            await _add_wanted([url], before["count"] == 0)
+        else:
+            await lms(["playlist", "insert", url])
     elif mode == "context":
-        # lire un album/playlist à partir d'une piste : charger tout puis cibler la piste
+        # lire un album/playlist LMS à partir d'une piste : charger tout puis cibler la piste
+        _cancel_fill()
         cmd: list[Any] = ["qobuz", "playlist", "play", f"item_id:{item_id}", "menu:qobuz"]
         if body.get("search"):
             cmd.append(f"search:{body['search']}")
         await lms(cmd)
-        target = str(body.get("url") or "").strip()
+        target = url.strip()
         try:
             idx = int(body.get("index") or 0)
         except (TypeError, ValueError):
@@ -975,13 +1064,27 @@ async def api_play(req: Request):
                 chk = await lms(["status", "-", 1])
                 if int(chk.get("playlist_cur_index", -1)) == idx:
                     break
+        await _mark_default_after_current()
+    elif mode == "add":
+        # album/playlist LMS ajouté : tout est « voulu », placé avant les titres par défaut
+        queue, cur = await _queue_urls()
+        slot = _wanted_slot(queue, cur) if queue else 0
+        cmd = ["qobuz", "playlist", "add", f"item_id:{item_id}", "menu:qobuz"]
+        if body.get("search"):
+            cmd.append(f"search:{body['search']}")
+        await lms(cmd)
+        await _move_new_block(len(queue), slot)
+        if before["count"] == 0:
+            await lms(["play"])  # file vide : on démarre la lecture
     else:
         cmd = ["qobuz", "playlist", mode, f"item_id:{item_id}", "menu:qobuz"]
         if body.get("search"):
             cmd.append(f"search:{body['search']}")
+        if mode == "play":
+            _cancel_fill()
         await lms(cmd)
-        if mode != "play" and before["count"] == 0:
-            await lms(["play"])  # file vide : on démarre la lecture
+        if mode == "play":
+            await _mark_default_after_current()
     await asyncio.sleep(0.4)
     return await poller.refresh()
 
@@ -1009,6 +1112,9 @@ async def api_control(req: Request):
     elif cmd in SIMPLE:
         if cmd in ("play", "next"):
             poller.note()
+        if cmd == "clear":
+            _cancel_fill()
+            _queue_default.clear()
         await lms(SIMPLE[cmd])
     elif cmd == "prev":
         st = await poller.fresh(3)
