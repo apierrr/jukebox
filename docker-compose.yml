@@ -1,0 +1,34 @@
+# Jukebox : télécommande web mobile pour Lyrion Music Server (LMS) et Qobuz.
+# Réglages dans .env (voir .env.example). Ce qui est propre à une machine
+# (réseau d'un reverse proxy, identifiants Qobuz...) va dans un
+# docker-compose.override.yml, ignoré par git.
+services:
+  jukebox:
+    build: .
+    image: jukebox
+    container_name: jukebox
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8767}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # pour joindre LMS s'il tourne sur l'hôte
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      - LMS_URL=${LMS_URL:-http://host.docker.internal:9000}
+      - PLAYER_ID=${PLAYER_ID:-}               # vide = premier lecteur connu de LMS
+      - APP_NAME=${APP_NAME:-Jukebox}
+      - GUEST_PIN=${GUEST_PIN:-}               # vide = pas de code demandé
+      - MAX_VOLUME=${MAX_VOLUME:-80}           # plafond de volume atteignable depuis l'app
+      - SECRET_KEY=${SECRET_KEY:-}             # sinon généré dans data/secret.key
+      - KEF_CONTROL_URL=${KEF_CONTROL_URL:-}   # réveil de l'enceinte (kef-web-control), vide = désactivé
+      - KEF_UPNP_URL=${KEF_UPNP_URL:-}         # contrôle AVTransport de l'enceinte, vide = veilleur sans vérification
+      - QOBUZ_APP_ID=${QOBUZ_APP_ID:-}         # recherche via l'API Qobuz (sinon via LMS)
+      - QOBUZ_CREDENTIALS=/qobuz/credentials.json
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

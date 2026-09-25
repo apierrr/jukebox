@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f14">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jukebox">
+<title>Jukebox</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header class="topbar">
+    <button class="icon-btn hidden" id="back" aria-label="Retour"></button>
+    <h1 id="title">Jukebox</h1>
+    <span class="player-chip" id="playerchip"></span>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <div class="dock">
+    <div id="mini" class="mini hidden" role="button" tabindex="0" aria-label="Ouvrir le lecteur">
+      <img id="mini-img" alt="">
+      <div class="mini-meta">
+        <div id="mini-title" class="one"></div>
+        <div id="mini-sub" class="one muted small"></div>
+      </div>
+      <button class="icon-btn" id="mini-toggle" aria-label="Lecture / pause"></button>
+      <button class="icon-btn" id="mini-next" aria-label="Titre suivant"></button>
+      <div class="mini-bar"><div id="mini-prog"></div></div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <a href="#/home" data-tab="home"><span class="ico" data-ico="home"></span>Accueil</a>
+      <a href="#/search" data-tab="search"><span class="ico" data-ico="search"></span>Recherche</a>
+      <a href="#/library" data-tab="library"><span class="ico" data-ico="library"></span>Bibliothèque</a>
+      <a href="#/queue" data-tab="queue"><span class="ico" data-ico="queue"></span>File<span id="qbadge" class="badge hidden"></span></a>
+    </nav>
+  </div>
+
+  <section id="np" class="np hidden" aria-label="En cours de lecture">
+    <img id="np-bg" class="np-bg" alt="">
+    <div class="np-inner">
+      <div class="np-head">
+        <button class="icon-btn" id="np-close" aria-label="Réduire"></button>
+        <span class="muted small" id="np-player"></span>
+        <button class="icon-btn" id="np-queue" aria-label="File d'attente"></button>
+      </div>
+      <div class="np-art"><img id="np-img" alt=""></div>
+      <div class="np-meta">
+        <div id="np-title" class="np-title"></div>
+        <div id="np-sub" class="np-sub muted"></div>
+      </div>
+      <div class="np-seek">
+        <input type="range" id="seek" min="0" max="100" value="0" step="1" aria-label="Position">
+        <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
+      </div>
+      <div class="np-controls">
+        <button class="icon-btn big" id="np-prev" aria-label="Précédent"></button>
+        <button class="play-btn" id="np-toggle" aria-label="Lecture / pause"></button>
+        <button class="icon-btn big" id="np-next" aria-label="Suivant"></button>
+      </div>
+      <div class="np-vol">
+        <span class="ico" data-ico="volLo"></span>
+        <input type="range" id="vol" min="0" max="100" value="0" step="1" aria-label="Volume">
+        <span class="ico" data-ico="volHi"></span>
+      </div>
+    </div>
+  </section>
+
+  <div id="sheet" class="sheet hidden"></div>
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <div id="pin" class="pin hidden">
+    <form id="pin-form" class="pin-card" autocomplete="off">
+      <img src="/static/icons/icon-192.png" alt="" class="pin-logo">
+      <h2>Bienvenue !</h2>
+      <p class="muted">Entrez le code invité pour choisir la musique de la maison.</p>
+      <input id="pin-input" inputmode="numeric" autocomplete="one-time-code" placeholder="Code" aria-label="Code invité">
+      <button type="submit" class="btn primary">Entrer</button>
+      <p id="pin-err" class="err"></p>
+    </form>
+  </div>
+</div>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

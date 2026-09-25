@@ -1,0 +1,13 @@
+# Données et réglages locaux
+data/
+.env
+docker-compose.override.yml
+# QR codes générés pour une installation donnée (contiennent son adresse)
+qr-*.png
+qr-*.svg
+# Générés au build (app/tools/make_icons.py)
+app/static/icons/
+# Python / divers
+__pycache__/
+*.pyc
+*.bak*
