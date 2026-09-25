@@ -327,6 +327,8 @@ async def browse(client: httpx.AsyncClient, item_id: str, start: int = 0, count:
                      head["image_large"], head["hires"])
         page["quality"] = head["quality"]
         page["about"] = album_about(a)
+        artist = a.get("artist") or {}
+        page["artist"] = {"id": f"qz:artist:{artist['id']}", "name": _name(artist)} if artist.get("id") else None
         return page
 
     if kind == "playlist":

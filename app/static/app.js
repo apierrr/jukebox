@@ -350,9 +350,16 @@ async function viewBrowse(id, params, seq) {
   const d = await api(`/api/browse?id=${encodeURIComponent(id)}&start=0&count=100`); if (seq !== renderSeq) return;
   // Titre de la carte d'abord (« Album » / « Artiste · année ») : l'en-tête LMS
   // est moins lisible (« Artiste - Album », année seule).
-  browseCtx = { id, seq, sections: d.sections, about: d.about, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', quality: d.quality || params.get('q') || '', image: i || d.image, count: d.count, items: d.items };
+  browseCtx = { id, seq, sections: d.sections, about: d.about, artist: d.artist, title: t || d.title, subtitle: s || d.subtitle, hires: d.hires || params.get('h') === '1', quality: d.quality || params.get('q') || '', image: i || d.image, count: d.count, items: d.items };
   setTitle(browseCtx.title || 'Parcourir');
   renderBrowse();
+}
+// Sous-titre d'album « Artiste · année » avec le nom de l'artiste cliquable
+function subtitleWithArtist(c) {
+  if (!c.artist) return esc(c.subtitle);
+  const link = `<a class="artist-link" href="${browseHref({ id: c.artist.id, title: c.artist.name })}">${esc(c.artist.name)}</a>`;
+  const sub = c.subtitle || '';
+  return sub.startsWith(c.artist.name) ? link + esc(sub.slice(c.artist.name.length)) : [link, esc(sub)].filter(Boolean).join(' · ');
 }
 // Page en sections (artiste via l'API Qobuz) : même présentation que la recherche.
 function browseSectionHTML(sec) {
@@ -381,7 +388,7 @@ function renderBrowse() {
     const nb = c.count > items.length ? c.count - folders.length : tracks.length;
     html += `<div class="album-head" data-item='${jsonAttr({ id: c.id, title: c.title, subtitle: c.subtitle, image: c.image, kind: 'collection' })}'>
       ${c.image ? `<img class="album-art" src="${esc(c.image)}" alt="">` : ''}
-      <div class="album-meta"><h2>${esc(c.title)}</h2>${c.subtitle ? `<div class="muted">${esc(c.subtitle)}</div>` : ''}${c.hires ? `<div class="q-line">${hrHTML(c)}${c.quality ? `<span>${esc(c.quality)}</span>` : ''}</div>` : ''}<div class="muted small">${nb} titre${nb > 1 ? 's' : ''}</div>
+      <div class="album-meta"><h2>${esc(c.title)}</h2>${c.subtitle || c.artist ? `<div class="muted">${subtitleWithArtist(c)}</div>` : ''}${c.hires ? `<div class="q-line">${hrHTML(c)}${c.quality ? `<span>${esc(c.quality)}</span>` : ''}</div>` : ''}<div class="muted small">${nb} titre${nb > 1 ? 's' : ''}</div>
       <div class="album-actions"><button class="btn primary" data-act="play">${I.play}<span>Lire</span></button><button class="btn" data-act="add">${I.plus}<span>Ajouter à la file</span></button>${c.about ? `<button class="btn icon-round" data-act="about" aria-label="À propos de l'album">${I.info}</button>` : ''}</div></div></div>`;
     html += `<div class="tracks">${tracks.map((it, k) => trackRowHTML(it, k + 1, { id: c.id, index: it.pos != null ? it.pos : k })).join('')}</div>`;
     if (texts.length) html += texts.map(x => `<p class="text-item">${esc(x.title)}</p>`).join('');
