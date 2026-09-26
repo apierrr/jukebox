@@ -147,15 +147,17 @@ function openSheet(it) {
   };
 }
 // Confirmation dans l'app (plutôt que la fenêtre confirm() du navigateur)
-function confirmSheet({ title, text, label, icon, onConfirm }) {
+// actions : [{ label, icon, danger, run }] ; un bouton par action, plus Annuler
+function confirmSheet({ title, text, actions }) {
   const sh = $('#sheet');
   sh.innerHTML = `<div class="sheet-bg" data-close></div><div class="sheet-body confirm"><h3>${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}
-    <button class="sheet-btn danger" data-ok>${icon || ''}<span>${esc(label)}</span></button>
+    ${actions.map((a, k) => `<button class="sheet-btn choice${a.danger ? ' danger' : ''}" data-ok="${k}">${a.icon || ''}<span>${esc(a.label)}</span></button>`).join('')}
     <button class="sheet-btn cancel" data-close>Annuler</button></div>`;
   sh.classList.remove('hidden'); requestAnimationFrame(() => sh.classList.add('open'));
   sh.onclick = e => {
     if (e.target.closest('[data-close]')) return closeSheet();
-    if (e.target.closest('[data-ok]')) { closeSheet(); onConfirm(); }
+    const b = e.target.closest('[data-ok]');
+    if (b) { closeSheet(); actions[+b.dataset.ok].run(); }
   };
 }
 // Présentation d'un album ou biographie d'un artiste (bouton « i »)
@@ -418,12 +420,16 @@ function viewQueue() {
   setTitle('File d’attente');
   view.innerHTML = `<div class="q-head"><div><h2 id="q-count"></h2><div class="muted small">Touchez un titre pour y sauter</div></div><button class="btn danger small" id="q-clear">${I.trash}<span>Vider</span></button></div><div id="q-rows" class="tracks"></div>`;
   $('#q-clear').addEventListener('click', () => {
-    const n = state.queue.length;
+    const n = state.queue.length, cur = state.status && state.status.current;
+    const stop = { label: cur ? 'Vider et arrêter la lecture' : 'Vider la file', icon: I.trash, danger: true,
+                   run: async () => { await control('clear'); toast('File vidée', 'ok'); } };
+    // Garder le titre en cours : seulement s'il y en a un et qu'il reste autre chose à retirer
+    const keep = { label: 'Vider, garder le titre en cours', icon: I.play,
+                   run: async () => { await control('clear_keep'); toast('File vidée, le titre en cours continue', 'ok'); } };
     confirmSheet({
       title: 'Vider la file d’attente ?',
-      text: `${n} titre${n > 1 ? 's' : ''} ${n > 1 ? 'seront retirés' : 'sera retiré'}, et la lecture s’arrête.`,
-      label: 'Vider la file', icon: I.trash,
-      onConfirm: async () => { await control('clear'); toast('File vidée', 'ok'); },
+      text: `${n} titre${n > 1 ? 's' : ''} dans la file.`,
+      actions: cur && n > 1 ? [keep, stop] : [stop],
     });
   });
   $('#q-rows').addEventListener('click', e => {

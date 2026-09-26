@@ -126,7 +126,10 @@ fin de file : chaque ajout est suivi d'un `playlist move` vers sa place.
 "Lire ensuite" reste un `playlist insert`, juste après le titre en cours.
 
 Jukebox retient les adresses des titres par défaut (`_queue_default`), remises
-à zéro à chaque lancement et quand on vide la file. Chaque entrée de file porte
+à zéro à chaque lancement et quand on vide la file. Vider propose d'arrêter la
+lecture (`playlist clear`) ou de garder le titre en cours (`clear_keep` : LMS
+n'ayant pas de commande pour ça, les autres titres sont retirés un à un, sans
+interrompre le flux). Chaque entrée de file porte
 `auto` ; l'app affiche les intertitres "Ajoutés à la file" et "Suite de la
 lecture". Un titre lancé depuis une recherche ou une liste de résultats part
 seul (`play_single`), y compris un titre venu de LMS : il est lancé par son

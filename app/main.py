@@ -1158,6 +1158,17 @@ async def api_control(req: Request):
     elif cmd == "jump":
         poller.note(index=int(value))
         await lms(["playlist", "index", int(value)])
+    elif cmd == "clear_keep":
+        # Vider la file en gardant le titre en cours : LMS n'a pas de commande
+        # pour ça, on retire les titres un à un (après, puis avant le titre en
+        # cours, pour que les index restent valides).
+        _cancel_fill()
+        _queue_default.clear()
+        queue, cur = await _queue_urls()
+        for i in range(len(queue) - 1, cur, -1):
+            await lms(["playlist", "delete", i])
+        for i in range(cur - 1, -1, -1):
+            await lms(["playlist", "delete", i])
     elif cmd == "remove":
         await lms(["playlist", "delete", int(value)])
     elif cmd == "move":

@@ -218,3 +218,4 @@ body.has-mini .toast{bottom:calc(var(--tabs-h) + var(--mini-h) + var(--sab) + 26
 /* nom d'artiste cliquable sur la page d'un album */
 .artist-link{color:var(--text);text-decoration:none;border-bottom:1px solid rgba(255,255,255,.28);padding-bottom:1px}
 .artist-link:active{color:var(--accent)}
+.sheet-btn.choice{justify-content:center;font-weight:600}
